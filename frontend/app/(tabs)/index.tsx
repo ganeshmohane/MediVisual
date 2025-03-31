@@ -1,154 +1,177 @@
 import React, { useState } from 'react';
-import { StyleSheet, Image, Alert, ActivityIndicator, Text, View, TouchableOpacity } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
+import { StyleSheet, TextInput, Alert, ActivityIndicator, Text, View, TouchableOpacity, ScrollView } from 'react-native';
 
-export default function TabOneScreen() {
-  const [image, setImage] = useState<string | null>(null);
+const GEMINI_API_KEY = '';
+
+export default function DiabetesChecker() {
+  const [fasting, setFasting] = useState('');
+  const [postprandial, setPostprandial] = useState('');
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
+  const [result, setResult] = useState(null);
+  const [geminiSuggestion, setGeminiSuggestion] = useState('');
 
-  const pickImage = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permissionResult.granted) {
-      Alert.alert('Permission Required', 'Please grant permission to access the photo library.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images, // Fallback to MediaTypeOptions
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      setImage(result.assets[0].uri);
-      setResult(null);
-    }
-  };
-
-  const captureImage = async () => {
-    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permissionResult.granted) {
-      Alert.alert('Permission Required', 'Please grant permission to use the camera.');
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      setImage(result.assets[0].uri);
-      setResult(null);
-    }
-  };
-
-  const classifyImage = async () => {
-    if (!image) {
-      Alert.alert('No Image Selected', 'Please upload or capture an image first.');
+  const analyzeDiabetes = async () => {
+    if (!fasting || !postprandial) {
+      Alert.alert('Missing Input', 'Please enter both fasting and postprandial blood sugar levels.');
       return;
     }
 
     try {
       setLoading(true);
-
-      const formData = new FormData();
-      formData.append('image', {
-        uri: image,
-        name: 'image.jpg',
-        type: 'image/jpeg',
-      } as unknown as Blob);
-
-      const response = await fetch('http://192.168.0.100:8008/api/classify/', {
+      const response = await fetch('http://192.168.0.101:8000/api/predict-diabetes/', {
         method: 'POST',
-        body: formData,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          features: [parseFloat(fasting), parseFloat(postprandial)],
+        }),
       });
-
+      
       const data = await response.json();
-      setResult(data.result);
+      setResult(data);
+      fetchGeminiSuggestions(data);
     } catch (error) {
-      console.error('Error uploading image:', error);
-      Alert.alert('Error', 'Something went wrong while classifying the image.');
+      console.error('Error analyzing diabetes:', error);
+      Alert.alert('Error', 'Something went wrong while analyzing your data.');
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchGeminiSuggestions = async (data) => {
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `Provide health recommendations based on this analysis: ${JSON.stringify(data)}` }] }]
+        }),
+      });
+
+      const suggestion = await response.json();
+      setGeminiSuggestion(suggestion.candidates?.[0]?.content?.parts?.[0]?.text || 'No suggestions available.');
+    } catch (error) {
+      console.error('Error fetching suggestions:', error);
+      Alert.alert('Error', 'Failed to fetch health recommendations.');
+    }
+  };
+
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>MediVisual</Text>
-      <View style={styles.separator} />
+      <Text style={styles.subtitle}>Your health, our insights.</Text>
+      
+      <View style={styles.inputBlock}>
+        <TextInput
+          style={styles.input}
+          placeholder="Fasting blood sugar level (mg/dL)"
+          keyboardType="numeric"
+          value={fasting}
+          onChangeText={setFasting}
+          placeholderTextColor="gainsboro" 
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Postprandial blood sugar level (mg/dL)"
+          keyboardType="numeric"
+          value={postprandial}
+          onChangeText={setPostprandial}
+          placeholderTextColor="gainsboro" 
+        />
+        <TouchableOpacity style={styles.button} onPress={analyzeDiabetes}>
+          <Text style={styles.buttonText}>Check Diabetes Status</Text>
+        </TouchableOpacity>
+      </View>
 
-      {image && <Image source={{ uri: image }} style={styles.image} />}
-
-      {!loading && (
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.button} onPress={pickImage}>
-            <Text style={styles.buttonText}>Upload Image</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.button} onPress={captureImage}>
-            <Text style={styles.buttonText}>Capture Image</Text>
-          </TouchableOpacity>
-          {image && (
-            <TouchableOpacity style={styles.button} onPress={classifyImage}>
-              <Text style={styles.buttonText}>Classify Image</Text>
-            </TouchableOpacity>
-          )}
+      {loading && <ActivityIndicator size="large" color="#007bff" />}
+      
+      {result && (
+        <View style={styles.resultContainer}>
+          <Text style={styles.resultTitle}>Analysis Result</Text>
+          <Text>Diabetes Tier: {result.tier || 'N/A'}</Text>
+          <Text>
+            Reconstruction Error: {result.reconstruction_error ? result.reconstruction_error.toFixed(5) : 'N/A'}
+          </Text>
+          <Text>Possible Diabetes: {result.possible_diabetes ? 'Yes' : 'No'}</Text>
+          <Text>Concerns: {result.concerns || 'No concerns detected'}</Text>
         </View>
       )}
 
-      {loading && <ActivityIndicator size="large" color="#0000ff" />}
-
-      {result && <Text style={styles.result}>Classification Result: {result}</Text>}
-    </View>
+      {geminiSuggestion && (
+        <View style={styles.suggestionContainer}>
+          <Text style={styles.resultTitle}>Health Suggestions</Text>
+          <Text>{geminiSuggestion}</Text>
+        </View>
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    padding: 20,
+    backgroundColor: '#000',
   },
   title: {
-    fontSize: 20,
+    fontSize: 26,
     fontWeight: 'bold',
-    marginBottom: 20,
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 10,
   },
-  separator: {
-    height: 1,
-    width: '80%',
-    backgroundColor: '#ccc',
-    marginVertical: 20,
+  subtitle: {
+    fontSize: 16,
+    color: '#bbb',
+    textAlign: 'center',
+    marginBottom: 30,
   },
-  image: {
-    width: 200,
-    height: 200,
-    marginBottom: 20,
-    borderRadius: 10,
+  inputBlock: {
+    width: '100%',
+    alignItems: 'center',
   },
-  buttonContainer: {
-    marginVertical: 10,
-    width: '80%',
+  input: {
+    width: '90%',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#555',
+    borderRadius: 8,
+    marginBottom: 15,
+    fontSize: 16,
+    backgroundColor: '#222',
+    color: '#fff',
   },
   button: {
     backgroundColor: '#007bff',
-    padding: 10,
-    borderRadius: 5,
+    padding: 14,
+    borderRadius: 8,
     alignItems: 'center',
-    marginVertical: 5,
+    width: '90%',
   },
   buttonText: {
     color: '#fff',
+    fontSize: 16,
     fontWeight: 'bold',
   },
-  result: {
+  resultContainer: {
     marginTop: 20,
-    fontSize: 16,
-    color: 'green',
-    textAlign: 'center',
+    padding: 15,
+    backgroundColor: '#111',
+    borderRadius: 8,
+    width: '90%',
+  },
+  resultTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 5,
+  },
+  suggestionContainer: {
+    marginTop: 20,
+    padding: 15,
+    backgroundColor: '#222',
+    borderRadius: 8,
+    width: '90%',
   },
 });
