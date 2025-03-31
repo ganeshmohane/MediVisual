@@ -1,3 +1,4 @@
 frontend/node_modules/
 backend\medivisual\db.sqlite3
 # backend/medivisual/classify/weights/*.h5 
+backend\venv
