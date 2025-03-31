@@ -65,3 +65,52 @@ class ImageClassificationView(APIView):
         except Exception as e:
             print(f"Error in classification: {e}")
             return "Error"
+
+
+
+### Diabetes Pred
+# Get the absolute path for the 'weights' folder inside the 'classify' app
+autoencoder_path = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),  # Current file's directory
+    'weights',  # 'weights' folder
+    'diabetes.keras'  # Model file
+)
+
+# Load the TensorFlow model
+try:
+    model = load_model(autoencoder_path)
+except Exception as e:
+    print(f"Error loading model: {e}")
+    model = None  # Handle the error if model loading fails
+
+class PredictionView(APIView):
+    def post(self, request, *args, **kwargs):
+        try:
+            data = request.data.get('features')  # Expecting a list of numerical features
+            if not isinstance(data, list):
+                return JsonResponse({'error': 'Invalid input format. Expected a list of numbers.'}, status=400)
+
+            # Preprocess input
+            processed_data = self.preprocess_input(data)
+
+            # Get model prediction
+            result = self.classify_data(processed_data)
+            print(result)
+            return JsonResponse({'result': result})
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+
+    def preprocess_input(self, data):
+        # Convert to NumPy array and normalize if required
+        data = np.array(data, dtype=np.float32)  # Convert input to NumPy array
+        data = np.expand_dims(data, axis=0)  # Add batch dimension
+        return data
+
+    def classify_data(self, data):
+        try:
+            prediction = model.predict(data)  # Predict using the model
+            predicted_class = np.argmax(prediction, axis=1)  # Get the highest probability class
+            return str(predicted_class[0])  # Return as string
+        except Exception as e:
+            print(f"Error in classification: {e}")
+            return "Error"
