@@ -4,3 +4,5 @@ djangorestframework
 pillow
 tensorflow
 numpy
+pandas
+scikit-learn

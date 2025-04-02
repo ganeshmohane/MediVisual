@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { StyleSheet, TextInput, Alert, ActivityIndicator, Text, View, TouchableOpacity, ScrollView } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, TextInput, Alert, ActivityIndicator, Text, View, TouchableOpacity, ScrollView, TouchableWithoutFeedback, Keyboard } from 'react-native';
 
-const GEMINI_API_KEY = '';
+const GEMINI_API_KEY = 'AIzaSyAd2cx8zQdBjIaa3Dg6nQWvCwyb-LXQlNQ';
 
 export default function DiabetesChecker() {
   const [fasting, setFasting] = useState('');
@@ -29,6 +29,7 @@ export default function DiabetesChecker() {
       const data = await response.json();
       setResult(data);
       fetchGeminiSuggestions(data);
+      console.log(result)
     } catch (error) {
       console.error('Error analyzing diabetes:', error);
       Alert.alert('Error', 'Something went wrong while analyzing your data.');
@@ -43,12 +44,12 @@ export default function DiabetesChecker() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: `Provide health recommendations based on this analysis: ${JSON.stringify(data)}` }] }]
+          contents: [{ parts: [{ text: `Provide health recommendations in short points: ${JSON.stringify(data)}` }] }]
         }),
       });
-
+      
       const suggestion = await response.json();
-      setGeminiSuggestion(suggestion.candidates?.[0]?.content?.parts?.[0]?.text || 'No suggestions available.');
+      setGeminiSuggestion(suggestion.candidates?.[0]?.content?.parts?.[0]?.text.replace(/\*\*(.*?)\*\*/g, '$1') || 'No suggestions available.');
     } catch (error) {
       console.error('Error fetching suggestions:', error);
       Alert.alert('Error', 'Failed to fetch health recommendations.');
@@ -56,74 +57,69 @@ export default function DiabetesChecker() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>MediVisual</Text>
-      <Text style={styles.subtitle}>Your health, our insights.</Text>
-      
-      <View style={styles.inputBlock}>
-        <TextInput
-          style={styles.input}
-          placeholder="Fasting blood sugar level (mg/dL)"
-          keyboardType="numeric"
-          value={fasting}
-          onChangeText={setFasting}
-          placeholderTextColor="gainsboro" 
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Postprandial blood sugar level (mg/dL)"
-          keyboardType="numeric"
-          value={postprandial}
-          onChangeText={setPostprandial}
-          placeholderTextColor="gainsboro" 
-        />
-        <TouchableOpacity style={styles.button} onPress={analyzeDiabetes}>
-          <Text style={styles.buttonText}>Check Diabetes Status</Text>
-        </TouchableOpacity>
-      </View>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <ScrollView contentContainerStyle={styles.inner}>
+          <Text style={styles.title}>MediVisual</Text>
+          <Text style={styles.subtitle}>Your health, our insights.</Text>
+          
+          <View style={styles.inputBlock}>
+            <TextInput
+              style={styles.input}
+              placeholder="Fasting blood sugar level (mg/dL)"
+              keyboardType="numeric"
+              value={fasting}
+              onChangeText={setFasting}
+              placeholderTextColor="#888"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Postprandial blood sugar level (mg/dL)"
+              keyboardType="numeric"
+              value={postprandial}
+              onChangeText={setPostprandial}
+              placeholderTextColor="#888"
+            />
+            <TouchableOpacity style={styles.button} onPress={analyzeDiabetes} disabled={loading}>
+              <Text style={styles.buttonText}>{loading ? 'Loading...' : 'Check Diabetes Status'}</Text>
+            </TouchableOpacity>
+          </View>
 
-      {loading && <ActivityIndicator size="large" color="#007bff" />}
-      
-      {result && (
-        <View style={styles.resultContainer}>
-          <Text style={styles.resultTitle}>Analysis Result</Text>
-          <Text>Diabetes Tier: {result.tier || 'N/A'}</Text>
-          <Text>
-            Reconstruction Error: {result.reconstruction_error ? result.reconstruction_error.toFixed(5) : 'N/A'}
-          </Text>
-          <Text>Possible Diabetes: {result.possible_diabetes ? 'Yes' : 'No'}</Text>
-          <Text>Concerns: {result.concerns || 'No concerns detected'}</Text>
-        </View>
-      )}
-
-      {geminiSuggestion && (
-        <View style={styles.suggestionContainer}>
-          <Text style={styles.resultTitle}>Health Suggestions</Text>
-          <Text>{geminiSuggestion}</Text>
-        </View>
-      )}
-    </ScrollView>
+          {loading && <ActivityIndicator size="large" color="#007bff" />}
+          
+          {result && (
+            <View style={styles.resultContainer}>
+              <Text style={styles.resultTitle}>Diabetes Prediction: {result.possible_diabetes}</Text>
+              <Text style={styles.resultText}>• Further medical consultation recommended: {geminiSuggestion}</Text>
+            </View>
+          )}
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: '#f8f9fa',
+  },
+  inner: {
     flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: '#000',
   },
   title: {
     fontSize: 26,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#333',
     textAlign: 'center',
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: '#bbb',
+    color: '#555',
     textAlign: 'center',
     marginBottom: 30,
   },
@@ -135,12 +131,12 @@ const styles = StyleSheet.create({
     width: '90%',
     padding: 12,
     borderWidth: 1,
-    borderColor: '#555',
+    borderColor: '#ccc',
     borderRadius: 8,
     marginBottom: 15,
     fontSize: 16,
-    backgroundColor: '#222',
-    color: '#fff',
+    backgroundColor: '#fff',
+    color: '#000',
   },
   button: {
     backgroundColor: '#007bff',
@@ -157,21 +153,19 @@ const styles = StyleSheet.create({
   resultContainer: {
     marginTop: 20,
     padding: 15,
-    backgroundColor: '#111',
+    backgroundColor: '#e9ecef',
     borderRadius: 8,
     width: '90%',
   },
   resultTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#333',
     marginBottom: 5,
   },
-  suggestionContainer: {
-    marginTop: 20,
-    padding: 15,
-    backgroundColor: '#222',
-    borderRadius: 8,
-    width: '90%',
-  },
+  resultText: {
+    fontSize: 16,
+    color: '#000',
+    marginTop: 5,
+  }
 });
