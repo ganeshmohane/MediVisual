@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, TextInput, Alert, ActivityIndicator, Text, View, TouchableOpacity, ScrollView, TouchableWithoutFeedback, Keyboard } from 'react-native';
 
-const GEMINI_API_KEY = 'AIzaSyAd2cx8zQdBjIaa3Dg6nQWvCwyb-LXQlNQ';
+const GEMINI_API_KEY = 'GEMINI_API_KEY';
 
 export default function DiabetesChecker() {
   const [fasting, setFasting] = useState('');
